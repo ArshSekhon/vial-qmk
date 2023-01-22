@@ -46,8 +46,10 @@ _Static_assert(sizeof(vial_unlock_combo_rows) == sizeof(vial_unlock_combo_cols),
 
 #include "qmk_settings.h"
 
-#ifdef VIAL_TAP_DANCE_ENABLE
-static void reload_tap_dance(void);
+#ifndef FORCE_DISABLE_VIAL_TAP_DANCE
+    #ifdef VIAL_TAP_DANCE_ENABLE
+    static void reload_tap_dance(void);
+    #endif
 #endif
 
 #ifdef VIAL_COMBO_ENABLE
@@ -59,8 +61,10 @@ static void reload_key_override(void);
 #endif
 
 void vial_init(void) {
-#ifdef VIAL_TAP_DANCE_ENABLE
+#ifndef FORCE_DISABLE_VIAL_TAP_DANCE
+    #ifdef VIAL_TAP_DANCE_ENABLE
     reload_tap_dance();
+    #endif
 #endif
 #ifdef VIAL_COMBO_ENABLE
     reload_combo();
@@ -226,26 +230,29 @@ void vial_handle_cmd(uint8_t *msg, uint8_t length) {
                 msg[2] = VIAL_KEY_OVERRIDE_ENTRIES;
                 break;
             }
-#ifdef VIAL_TAP_DANCE_ENABLE
-            case dynamic_vial_tap_dance_get: {
-                uint8_t idx = msg[3];
-                vial_tap_dance_entry_t td = { 0 };
-                msg[0] = dynamic_keymap_get_tap_dance(idx, &td);
-                memcpy(&msg[1], &td, sizeof(td));
-                break;
-            }
-            case dynamic_vial_tap_dance_set: {
-                uint8_t idx = msg[3];
-                vial_tap_dance_entry_t td;
-                memcpy(&td, &msg[4], sizeof(td));
-                td.on_tap = vial_keycode_firewall(td.on_tap);
-                td.on_hold = vial_keycode_firewall(td.on_hold);
-                td.on_double_tap = vial_keycode_firewall(td.on_double_tap);
-                td.on_tap_hold = vial_keycode_firewall(td.on_tap_hold);
-                msg[0] = dynamic_keymap_set_tap_dance(idx, &td);
-                reload_tap_dance();
-                break;
-            }
+
+#ifndef FORCE_DISABLE_VIAL_TAP_DANCE
+    #ifdef VIAL_TAP_DANCE_ENABLE
+                case dynamic_vial_tap_dance_get: {
+                    uint8_t idx = msg[3];
+                    vial_tap_dance_entry_t td = { 0 };
+                    msg[0] = dynamic_keymap_get_tap_dance(idx, &td);
+                    memcpy(&msg[1], &td, sizeof(td));
+                    break;
+                }
+                case dynamic_vial_tap_dance_set: {
+                    uint8_t idx = msg[3];
+                    vial_tap_dance_entry_t td;
+                    memcpy(&td, &msg[4], sizeof(td));
+                    td.on_tap = vial_keycode_firewall(td.on_tap);
+                    td.on_hold = vial_keycode_firewall(td.on_hold);
+                    td.on_double_tap = vial_keycode_firewall(td.on_double_tap);
+                    td.on_tap_hold = vial_keycode_firewall(td.on_tap_hold);
+                    msg[0] = dynamic_keymap_set_tap_dance(idx, &td);
+                    reload_tap_dance();
+                    break;
+                }
+    #endif
 #endif
 #ifdef VIAL_COMBO_ENABLE
             case dynamic_vial_combo_get: {
@@ -322,178 +329,182 @@ void vial_keycode_tap(uint16_t keycode) {
     vial_keycode_up(keycode);
 }
 
-#ifdef VIAL_TAP_DANCE_ENABLE
-#include "process_tap_dance.h"
+#ifndef FORCE_DISABLE_VIAL_TAP_DANCE
+    #ifdef VIAL_TAP_DANCE_ENABLE
+    #include "process_tap_dance.h"
 
-/* based on ZSA configurator generated code */
+    /* based on ZSA configurator generated code */
 
-enum {
-    SINGLE_TAP = 1,
-    SINGLE_HOLD,
-    DOUBLE_TAP,
-    DOUBLE_HOLD,
-    DOUBLE_SINGLE_TAP,
-    MORE_TAPS
-};
+    enum {
+        SINGLE_TAP = 1,
+        SINGLE_HOLD,
+        DOUBLE_TAP,
+        DOUBLE_HOLD,
+        DOUBLE_SINGLE_TAP,
+        MORE_TAPS
+    };
 
-static uint8_t dance_state[VIAL_TAP_DANCE_ENTRIES];
-static vial_tap_dance_entry_t td_entry;
+    static uint8_t dance_state[VIAL_TAP_DANCE_ENTRIES];
+    static vial_tap_dance_entry_t td_entry;
 
-static uint8_t dance_step(qk_tap_dance_state_t *state) {
-    if (state->count == 1) {
-        if (state->interrupted || !state->pressed) return SINGLE_TAP;
-        else return SINGLE_HOLD;
-    } else if (state->count == 2) {
-        if (state->interrupted) return DOUBLE_SINGLE_TAP;
-        else if (state->pressed) return DOUBLE_HOLD;
-        else return DOUBLE_TAP;
+    static uint8_t dance_step(qk_tap_dance_state_t *state) {
+        if (state->count == 1) {
+            if (state->interrupted || !state->pressed) return SINGLE_TAP;
+            else return SINGLE_HOLD;
+        } else if (state->count == 2) {
+            if (state->interrupted) return DOUBLE_SINGLE_TAP;
+            else if (state->pressed) return DOUBLE_HOLD;
+            else return DOUBLE_TAP;
+        }
+        return MORE_TAPS;
     }
-    return MORE_TAPS;
-}
 
-static void on_dance(qk_tap_dance_state_t *state, void *user_data) {
-    uint8_t index = (uintptr_t)user_data;
-    if (dynamic_keymap_get_tap_dance(index, &td_entry) != 0)
-        return;
-    uint16_t kc = td_entry.on_tap;
-    if (kc) {
-        if (state->count == 3) {
-            vial_keycode_tap(kc);
-            vial_keycode_tap(kc);
-            vial_keycode_tap(kc);
-        } else if (state->count > 3) {
-            vial_keycode_tap(kc);
-        }
-    }
-}
-
-static void on_dance_finished(qk_tap_dance_state_t *state, void *user_data) {
-    uint8_t index = (uintptr_t)user_data;
-    if (dynamic_keymap_get_tap_dance(index, &td_entry) != 0)
-        return;
-    dance_state[index] = dance_step(state);
-    switch (dance_state[index]) {
-        case SINGLE_TAP: {
-            if (td_entry.on_tap)
-                vial_keycode_down(td_entry.on_tap);
-            break;
-        }
-        case SINGLE_HOLD: {
-            if (td_entry.on_hold)
-                vial_keycode_down(td_entry.on_hold);
-            else if (td_entry.on_tap)
-                vial_keycode_down(td_entry.on_tap);
-            break;
-        }
-        case DOUBLE_TAP: {
-            if (td_entry.on_double_tap) {
-                vial_keycode_down(td_entry.on_double_tap);
-            } else if (td_entry.on_tap) {
-                vial_keycode_tap(td_entry.on_tap);
-                vial_keycode_down(td_entry.on_tap);
+    static void on_dance(qk_tap_dance_state_t *state, void *user_data) {
+        uint8_t index = (uintptr_t)user_data;
+        if (dynamic_keymap_get_tap_dance(index, &td_entry) != 0)
+            return;
+        uint16_t kc = td_entry.on_tap;
+        if (kc) {
+            if (state->count == 3) {
+                vial_keycode_tap(kc);
+                vial_keycode_tap(kc);
+                vial_keycode_tap(kc);
+            } else if (state->count > 3) {
+                vial_keycode_tap(kc);
             }
-            break;
         }
-        case DOUBLE_HOLD: {
-            if (td_entry.on_tap_hold) {
-                vial_keycode_down(td_entry.on_tap_hold);
-            } else {
+    }
+
+    static void on_dance_finished(qk_tap_dance_state_t *state, void *user_data) {
+        uint8_t index = (uintptr_t)user_data;
+        if (dynamic_keymap_get_tap_dance(index, &td_entry) != 0)
+            return;
+        dance_state[index] = dance_step(state);
+        switch (dance_state[index]) {
+            case SINGLE_TAP: {
+                if (td_entry.on_tap)
+                    vial_keycode_down(td_entry.on_tap);
+                break;
+            }
+            case SINGLE_HOLD: {
+                if (td_entry.on_hold)
+                    vial_keycode_down(td_entry.on_hold);
+                else if (td_entry.on_tap)
+                    vial_keycode_down(td_entry.on_tap);
+                break;
+            }
+            case DOUBLE_TAP: {
+                if (td_entry.on_double_tap) {
+                    vial_keycode_down(td_entry.on_double_tap);
+                } else if (td_entry.on_tap) {
+                    vial_keycode_tap(td_entry.on_tap);
+                    vial_keycode_down(td_entry.on_tap);
+                }
+                break;
+            }
+            case DOUBLE_HOLD: {
+                if (td_entry.on_tap_hold) {
+                    vial_keycode_down(td_entry.on_tap_hold);
+                } else {
+                    if (td_entry.on_tap) {
+                        vial_keycode_tap(td_entry.on_tap);
+                        if (td_entry.on_hold)
+                            vial_keycode_down(td_entry.on_hold);
+                        else
+                            vial_keycode_down(td_entry.on_tap);
+                    } else if (td_entry.on_hold) {
+                        vial_keycode_down(td_entry.on_hold);
+                    }
+                }
+                break;
+            }
+            case DOUBLE_SINGLE_TAP: {
                 if (td_entry.on_tap) {
                     vial_keycode_tap(td_entry.on_tap);
-                    if (td_entry.on_hold)
-                        vial_keycode_down(td_entry.on_hold);
-                    else
-                        vial_keycode_down(td_entry.on_tap);
-                } else if (td_entry.on_hold) {
-                    vial_keycode_down(td_entry.on_hold);
+                    vial_keycode_down(td_entry.on_tap);
                 }
+                break;
             }
-            break;
-        }
-        case DOUBLE_SINGLE_TAP: {
-            if (td_entry.on_tap) {
-                vial_keycode_tap(td_entry.on_tap);
-                vial_keycode_down(td_entry.on_tap);
-            }
-            break;
         }
     }
-}
 
-static void on_dance_reset(qk_tap_dance_state_t *state, void *user_data) {
-    uint8_t index = (uintptr_t)user_data;
-    if (dynamic_keymap_get_tap_dance(index, &td_entry) != 0)
-        return;
-    qs_wait_ms(QS_tap_code_delay);
-    uint8_t st = dance_state[index];
-    state->count = 0;
-    dance_state[index] = 0;
-    switch (st) {
-        case SINGLE_TAP: {
-            if (td_entry.on_tap)
-                vial_keycode_up(td_entry.on_tap);
-            break;
-        }
-        case SINGLE_HOLD: {
-            if (td_entry.on_hold)
-                vial_keycode_up(td_entry.on_hold);
-            else if (td_entry.on_tap)
-                vial_keycode_up(td_entry.on_tap);
-            break;
-        }
-        case DOUBLE_TAP: {
-            if (td_entry.on_double_tap) {
-                vial_keycode_up(td_entry.on_double_tap);
-            } else if (td_entry.on_tap) {
-                vial_keycode_up(td_entry.on_tap);
+    static void on_dance_reset(qk_tap_dance_state_t *state, void *user_data) {
+        uint8_t index = (uintptr_t)user_data;
+        if (dynamic_keymap_get_tap_dance(index, &td_entry) != 0)
+            return;
+        qs_wait_ms(QS_tap_code_delay);
+        uint8_t st = dance_state[index];
+        state->count = 0;
+        dance_state[index] = 0;
+        switch (st) {
+            case SINGLE_TAP: {
+                if (td_entry.on_tap)
+                    vial_keycode_up(td_entry.on_tap);
+                break;
             }
-            break;
-        }
-        case DOUBLE_HOLD: {
-            if (td_entry.on_tap_hold) {
-                vial_keycode_up(td_entry.on_tap_hold);
-            } else {
-                if (td_entry.on_tap) {
-                    if (td_entry.on_hold)
-                        vial_keycode_up(td_entry.on_hold);
-                    else
-                        vial_keycode_up(td_entry.on_tap);
-                } else if (td_entry.on_hold) {
+            case SINGLE_HOLD: {
+                if (td_entry.on_hold)
                     vial_keycode_up(td_entry.on_hold);
+                else if (td_entry.on_tap)
+                    vial_keycode_up(td_entry.on_tap);
+                break;
+            }
+            case DOUBLE_TAP: {
+                if (td_entry.on_double_tap) {
+                    vial_keycode_up(td_entry.on_double_tap);
+                } else if (td_entry.on_tap) {
+                    vial_keycode_up(td_entry.on_tap);
                 }
+                break;
             }
-            break;
-        }
-        case DOUBLE_SINGLE_TAP: {
-            if (td_entry.on_tap) {
-                vial_keycode_up(td_entry.on_tap);
+            case DOUBLE_HOLD: {
+                if (td_entry.on_tap_hold) {
+                    vial_keycode_up(td_entry.on_tap_hold);
+                } else {
+                    if (td_entry.on_tap) {
+                        if (td_entry.on_hold)
+                            vial_keycode_up(td_entry.on_hold);
+                        else
+                            vial_keycode_up(td_entry.on_tap);
+                    } else if (td_entry.on_hold) {
+                        vial_keycode_up(td_entry.on_hold);
+                    }
+                }
+                break;
             }
-            break;
+            case DOUBLE_SINGLE_TAP: {
+                if (td_entry.on_tap) {
+                    vial_keycode_up(td_entry.on_tap);
+                }
+                break;
+            }
         }
     }
-}
 
-qk_tap_dance_action_t tap_dance_actions[VIAL_TAP_DANCE_ENTRIES] = { };
+    qk_tap_dance_action_t tap_dance_actions[VIAL_TAP_DANCE_ENTRIES] = { };
 
-/* Load timings from eeprom into custom_tapping_term */
-static void reload_tap_dance(void) {
-    for (size_t i = 0; i < VIAL_TAP_DANCE_ENTRIES; ++i) {
-        tap_dance_actions[i].fn.on_each_tap = on_dance;
-        tap_dance_actions[i].fn.on_dance_finished = on_dance_finished;
-        tap_dance_actions[i].fn.on_reset = on_dance_reset;
-        tap_dance_actions[i].user_data = (void*)i;
+    /* Load timings from eeprom into custom_tapping_term */
+    static void reload_tap_dance(void) {
+        for (size_t i = 0; i < VIAL_TAP_DANCE_ENTRIES; ++i) {
+            tap_dance_actions[i].fn.on_each_tap = on_dance;
+            tap_dance_actions[i].fn.on_dance_finished = on_dance_finished;
+            tap_dance_actions[i].fn.on_reset = on_dance_reset;
+            tap_dance_actions[i].user_data = (void*)i;
+        }
     }
-}
+    #endif
 #endif
 
 #ifdef TAPPING_TERM_PER_KEY
 uint16_t get_tapping_term(uint16_t keycode, keyrecord_t *record) {
-#ifdef VIAL_TAP_DANCE_ENABLE
+#ifndef FORCE_DISABLE_VIAL_TAP_DANCE
+    #ifdef VIAL_TAP_DANCE_ENABLE
     if (keycode >= QK_TAP_DANCE && keycode <= QK_TAP_DANCE_MAX) {
         vial_tap_dance_entry_t td;
         if (dynamic_keymap_get_tap_dance(keycode & 0xFF, &td) == 0)
             return td.custom_tapping_term;
     }
+    #endif
 #endif
 #ifdef QMK_SETTINGS
     return qs_get_tapping_term(keycode, record);
@@ -526,12 +537,16 @@ static void reload_combo(void) {
 }
 #endif
 
-#ifdef VIAL_TAP_DANCE_ENABLE
+#ifndef FORCE_DISABLE_VIAL_TAP_DANCE
+    #ifdef VIAL_TAP_DANCE_ENABLE
 void process_tap_dance_action_on_dance_finished(qk_tap_dance_action_t *action);
+    #endif
 #endif
 
 bool process_record_vial(uint16_t keycode, keyrecord_t *record) {
-#ifdef VIAL_TAP_DANCE_ENABLE
+
+#ifndef FORCE_DISABLE_VIAL_TAP_DANCE
+    #ifdef VIAL_TAP_DANCE_ENABLE
     /* process releases before tap-dance timeout arrives */
     if (!record->event.pressed && keycode >= QK_TAP_DANCE && keycode <= QK_TAP_DANCE_MAX) {
         uint16_t idx = keycode - QK_TAP_DANCE;
@@ -551,6 +566,7 @@ bool process_record_vial(uint16_t keycode, keyrecord_t *record) {
                 /* reset_tap_dance() will get called in process_tap_dance() */
             }
     }
+    #endif  
 #endif
 
     return true;

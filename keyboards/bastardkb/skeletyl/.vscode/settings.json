@@ -1,0 +1,7 @@
+{
+    // "C_Cpp.errorSquiggles": "disabled",
+    "files.associations": {
+        "base_layer.h": "c",
+        "layers.h": "c"
+    }
+}

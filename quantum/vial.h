@@ -71,36 +71,42 @@ void vial_keycode_tap(uint16_t keycode);
    used to send arbitrary keycodes thru process_record_quantum_helper */
 #define VIAL_MATRIX_MAGIC 240
 
+#ifndef FORCE_DISABLE_VIAL_TAP_DANCE
 
-#ifdef TAP_DANCE_ENABLE
-#define VIAL_TAP_DANCE_ENABLE
+    #ifdef TAP_DANCE_ENABLE
+    // #define VIAL_TAP_DANCE_ENABLE
 
-#ifndef VIAL_TAP_DANCE_ENTRIES
-    #if TOTAL_EEPROM_BYTE_COUNT > 4000
-        #define VIAL_TAP_DANCE_ENTRIES 32
-    #elif TOTAL_EEPROM_BYTE_COUNT > 2000
-        #define VIAL_TAP_DANCE_ENTRIES 16
-    #elif TOTAL_EEPROM_BYTE_COUNT > 1000
-        #define VIAL_TAP_DANCE_ENTRIES 8
-    #else
-        #define VIAL_TAP_DANCE_ENTRIES 4
+    #ifndef VIAL_TAP_DANCE_ENTRIES
+        #if TOTAL_EEPROM_BYTE_COUNT > 4000
+            #define VIAL_TAP_DANCE_ENTRIES 32
+        #elif TOTAL_EEPROM_BYTE_COUNT > 2000
+            #define VIAL_TAP_DANCE_ENTRIES 16
+        #elif TOTAL_EEPROM_BYTE_COUNT > 1000
+            #define VIAL_TAP_DANCE_ENTRIES 8
+        #else
+            #define VIAL_TAP_DANCE_ENTRIES 4
+        #endif
     #endif
+
+    typedef struct {
+        uint16_t on_tap;
+        uint16_t on_hold;
+        uint16_t on_double_tap;
+        uint16_t on_tap_hold;
+        uint16_t custom_tapping_term;
+    } vial_tap_dance_entry_t;
+    _Static_assert(sizeof(vial_tap_dance_entry_t) == 10, "Unexpected size of the vial_tap_dance_entry_t structure");
+
+    #else
+    #undef VIAL_TAP_DANCE_ENTRIES
+    #define VIAL_TAP_DANCE_ENTRIES 0
+    #endif
+
+    #else
+    #undef VIAL_TAP_DANCE_ENTRIES
+    #define VIAL_TAP_DANCE_ENTRIES 0
+
 #endif
-
-typedef struct {
-    uint16_t on_tap;
-    uint16_t on_hold;
-    uint16_t on_double_tap;
-    uint16_t on_tap_hold;
-    uint16_t custom_tapping_term;
-} vial_tap_dance_entry_t;
-_Static_assert(sizeof(vial_tap_dance_entry_t) == 10, "Unexpected size of the vial_tap_dance_entry_t structure");
-
-#else
-#undef VIAL_TAP_DANCE_ENTRIES
-#define VIAL_TAP_DANCE_ENTRIES 0
-#endif
-
 
 #ifdef COMBO_ENABLE
 #define VIAL_COMBO_ENABLE
